@@ -130,6 +130,29 @@ Built-in runtimes:
 
 Context flow: `Agent#execute_tool_calls` → `ToolRuntime#execute(tool_calls, tools:, context:)` → `Runner#map(tool_calls, context:) { dispatch }` → `Tool#call(context:, **args)`
 
+### MCP Integration (`lib/riffer/mcp/`)
+
+Register third-party MCP servers globally; agents opt-in by tag via `use_mcp`. Tags are application-defined (manifests may list several; any overlap with `use_mcp` opts in—see `docs/10_MCP.md`).
+
+```ruby
+Riffer::Mcp.register(
+  name: "github",
+  tags: [:github],
+  endpoint: "https://mcp.github.com",
+  headers: -> { {Authorization: "Bearer #{ENV['GITHUB_TOKEN']}"} }
+)
+
+class ResearchAgent < Riffer::Agent
+  model "openai/gpt-4o"
+  use_mcp :github                      # picks up any :github-tagged registration
+  use_mcp :search, on_pending: :wait   # per-call override
+end
+```
+
+Key types: `Manifest` (value object), `Registry` (thread-safe store), `Registration` (spawns discovery thread → `ToolFactory` → `AgentFactory`), `Client` (wraps `mcp` gem).
+
+**on_pending strategies** (global default `:ignore`): `:ignore` skips the server, `:wait` blocks up to `wait_timeout` seconds, `:raise` raises `NotReadyError`.
+
 ## Key Patterns
 
 - Model config accepts a `provider/model` string (e.g., `openai/gpt-4`) or a Proc/lambda that returns one
@@ -197,6 +220,14 @@ lib/
       reasoning_done.rb  # Reasoning done event
       web_search_status.rb # Web search status event
       web_search_done.rb   # Web search done event
+    mcp.rb               # MCP public API + error classes
+    mcp/
+      manifest.rb        # Server config value object
+      registry.rb        # Thread-safe global store
+      registration.rb    # Per-server state + discovery thread
+      client.rb          # Thin mcp gem wrapper
+      tool_factory.rb    # Generates Riffer::Tool subclasses from MCP tools
+      agent_factory.rb   # Generates Riffer::Agent container per server
 test/
   test_helper.rb         # Minitest configuration with VCR
   riffer_test.rb         # Main module tests

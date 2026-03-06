@@ -1,0 +1,168 @@
+# frozen_string_literal: true
+
+require "test_helper"
+
+describe Riffer::Mcp::Registration do
+  let(:manifest) do
+    Riffer::Mcp::Manifest.new(name: "test-srv", tags: [:test], endpoint: "https://test.example.com")
+  end
+
+  # Build a registration whose discovery thread is bypassed so tests control state directly.
+  def build_stub_registration(manifest, ready: false, tools: [], agent: nil)
+    reg = Riffer::Mcp::Registration.allocate
+    reg.instance_variable_set(:@manifest, manifest)
+    reg.instance_variable_set(:@ready, ready)
+    reg.instance_variable_set(:@tools, tools)
+    reg.instance_variable_set(:@agent, agent)
+    reg.instance_variable_set(:@mutex, Mutex.new)
+    reg
+  end
+
+  # A Registration subclass that injects a fake MCP client, bypassing real HTTP.
+  def build_injected_registration(manifest, client:)
+    klass = Class.new(Riffer::Mcp::Registration) do
+      attr_writer :injected_client
+
+      private
+
+      def build_client
+        @injected_client
+      end
+    end
+    reg = klass.new(manifest)
+    reg.injected_client = client
+    reg
+  end
+
+  describe "#manifest" do
+    it "returns the manifest" do
+      reg = build_stub_registration(manifest)
+      assert_equal manifest, reg.manifest
+    end
+  end
+
+  describe "#ready?" do
+    it "returns false before discovery completes" do
+      reg = build_stub_registration(manifest, ready: false)
+      refute reg.ready?
+    end
+
+    it "returns true after discovery completes" do
+      reg = build_stub_registration(manifest, ready: true)
+      assert reg.ready?
+    end
+  end
+
+  describe "#tools" do
+    it "returns empty array before discovery" do
+      reg = build_stub_registration(manifest)
+      assert_empty reg.tools
+    end
+
+    it "returns tool classes after discovery" do
+      tool_class = Class.new(Riffer::Tool)
+      reg = build_stub_registration(manifest, ready: true, tools: [tool_class])
+      assert_equal [tool_class], reg.tools
+    end
+  end
+
+  describe "#agent" do
+    it "returns nil before discovery" do
+      reg = build_stub_registration(manifest)
+      assert_nil reg.agent
+    end
+
+    it "returns agent class after discovery" do
+      agent_class = Class.new(Riffer::Agent)
+      reg = build_stub_registration(manifest, ready: true, agent: agent_class)
+      assert_equal agent_class, reg.agent
+    end
+  end
+
+  describe "#wait_until_ready!" do
+    it "returns immediately when already ready" do
+      reg = build_stub_registration(manifest, ready: true)
+      assert_nil reg.wait_until_ready!
+    end
+
+    it "raises TimeoutError when deadline passes without becoming ready" do
+      reg = build_stub_registration(manifest, ready: false)
+      original_timeout = Riffer.config.mcp.wait_timeout
+      Riffer.config.mcp.wait_timeout = 0.05
+      assert_raises(Riffer::Mcp::TimeoutError) { reg.wait_until_ready! }
+    ensure
+      Riffer.config.mcp.wait_timeout = original_timeout
+    end
+
+    it "returns once the ready flag is set by another thread" do
+      reg = build_stub_registration(manifest, ready: false)
+      original_timeout = Riffer.config.mcp.wait_timeout
+      Riffer.config.mcp.wait_timeout = 1
+
+      Thread.new do
+        sleep 0.1
+        reg.instance_variable_get(:@mutex).synchronize do
+          reg.instance_variable_set(:@ready, true)
+        end
+      end
+
+      assert_nil reg.wait_until_ready!
+    ensure
+      Riffer.config.mcp.wait_timeout = original_timeout
+    end
+  end
+
+  describe "discovery thread" do
+    it "sets ready=true and populates tools when discovery succeeds" do
+      td = {name: "ping", description: "Ping", input_schema: {type: "object", properties: {}, required: [], additionalProperties: false}}
+      fake_client = Object.new
+      fake_client.define_singleton_method(:tools_list) { [td] }
+
+      klass = Class.new(Riffer::Mcp::Registration) do
+        attr_writer :injected_client
+
+        private
+
+        def build_client = @injected_client
+      end
+
+      reg = klass.allocate
+      reg.instance_variable_set(:@manifest, manifest)
+      reg.instance_variable_set(:@ready, false)
+      reg.instance_variable_set(:@tools, [])
+      reg.instance_variable_set(:@agent, nil)
+      reg.instance_variable_set(:@mutex, Mutex.new)
+      reg.injected_client = fake_client
+      reg.send(:spawn_discovery_thread).join
+
+      assert reg.ready?
+      assert_equal 1, reg.tools.size
+      assert_equal "ping", reg.tools.first.name
+      refute_nil reg.agent
+    end
+
+    it "leaves ready=false when discovery raises" do
+      bad_client = Object.new
+      bad_client.define_singleton_method(:tools_list) { raise "connection refused" }
+
+      klass = Class.new(Riffer::Mcp::Registration) do
+        attr_writer :injected_client
+
+        private
+
+        def build_client = @injected_client
+      end
+
+      reg = klass.allocate
+      reg.instance_variable_set(:@manifest, manifest)
+      reg.instance_variable_set(:@ready, false)
+      reg.instance_variable_set(:@tools, [])
+      reg.instance_variable_set(:@agent, nil)
+      reg.instance_variable_set(:@mutex, Mutex.new)
+      reg.injected_client = bad_client
+      reg.send(:spawn_discovery_thread).join
+
+      refute reg.ready?
+    end
+  end
+end

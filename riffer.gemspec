@@ -39,6 +39,7 @@ Gem::Specification.new do |spec|
 
   # Runtime dependencies
   spec.add_dependency "zeitwerk", "~> 2.6", ">= 2.6.0"
+  spec.add_dependency "mcp", "~> 0.8"
 
   # Development dependencies
   spec.add_development_dependency "anthropic", "~> 1.32.0"

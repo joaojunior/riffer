@@ -132,6 +132,26 @@ class Riffer::Agent
     @tools_config = tools_or_lambda
   end
 
+  # Opts this agent into tools from all MCP registrations that share any of
+  # the given tag(s).
+  #
+  # +tag+ - a String or Symbol; matched against registration manifest tags.
+  # +on_pending:+ - per-call override for the global +Riffer.config.mcp.on_pending+
+  #   strategy. One of +:ignore+, +:wait+, or +:raise+.
+  #
+  #: (String | Symbol, ?on_pending: Symbol?) -> void
+  def self.use_mcp(tag, on_pending: nil)
+    @mcp_configs ||= []
+    @mcp_configs << {tags: [tag.to_sym], on_pending: on_pending}
+  end
+
+  # Returns the accumulated +use_mcp+ configurations for this agent class.
+  #
+  #: () -> Array[Hash[Symbol, untyped]]
+  def self.mcp_configs
+    @mcp_configs || []
+  end
+
   # Gets or sets the tool runtime for this agent.
   #
   # Accepts a Riffer::ToolRuntime subclass, a Riffer::ToolRuntime instance,
@@ -695,19 +715,54 @@ class Riffer::Agent
     end
   end
 
+  # Returns tools from +uses_tools+ only (static array or Proc result).
+  #--
+  #: () -> Array[singleton(Riffer::Tool)]
+  def resolve_uses_tools_config
+    config = self.class.uses_tools
+
+    if config.nil?
+      []
+    elsif config.is_a?(Proc)
+      (config.arity == 0) ? config.call : config.call(@context)
+    else
+      config
+    end
+  end
+
+  #--
+  #: () -> Array[singleton(Riffer::Tool)]
+  def resolve_mcp_tool_classes
+    configs = self.class.mcp_configs
+    return [] if configs.empty?
+
+    combined = []
+    configs.each do |cfg|
+      on_pending = cfg[:on_pending] || Riffer.config.mcp.on_pending
+      Riffer::Mcp::Registry.find_by_tags(cfg[:tags]).each do |reg|
+        unless reg.ready?
+          case on_pending
+          when :ignore
+            next
+          when :wait
+            reg.wait_until_ready!
+          when :raise
+            raise Riffer::Mcp::NotReadyError, "MCP server '#{reg.manifest.name}' is not ready"
+          else
+            raise Riffer::ArgumentError, "Invalid mcp on_pending: #{on_pending.inspect}"
+          end
+        end
+        combined.concat(reg.tools) if reg.ready?
+      end
+    end
+    combined.uniq
+  end
+
   #--
   #: () -> Array[singleton(Riffer::Tool)]
   def resolved_tools
     @resolved_tools ||= begin
-      config = self.class.uses_tools
-
-      tools = if config.nil?
-        []
-      elsif config.is_a?(Proc)
-        (config.arity == 0) ? config.call : config.call(@context)
-      else
-        config
-      end
+      tools = resolve_uses_tools_config + resolve_mcp_tool_classes
 
       if @skills_state
         activate_tool = @skills_state.adapter.activate_tool
