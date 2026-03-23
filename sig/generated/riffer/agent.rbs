@@ -358,6 +358,11 @@ class Riffer::Agent
   # : (Riffer::Mcp::Registration, Array[Symbol], Proc?, Hash[Symbol, untyped]) -> Array[singleton(Riffer::Tool)]
   def mcp_tools_for_registration: (Riffer::Mcp::Registration, Array[Symbol], Proc?, Hash[Symbol, untyped]) -> Array[singleton(Riffer::Tool)]
 
+  # Raises if two or more tool classes share the same +.name+ (ambiguous dispatch).
+  #
+  # : (Array[singleton(Riffer::Tool)]) -> void
+  def assert_distinct_tool_names!: (Array[singleton(Riffer::Tool)]) -> void
+
   # : () -> Array[singleton(Riffer::Tool)]
   def resolved_tools: () -> Array[singleton(Riffer::Tool)]
 

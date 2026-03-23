@@ -3540,13 +3540,14 @@ describe Riffer::Agent do
       reg
     end
 
-    def inject_pending_registration(name:, tags:)
+    def inject_pending_registration(name:, tags:, discovery_error: nil)
       manifest = Riffer::Mcp::Manifest.new(name: name, tags: tags, endpoint: "https://x.com", discovery_headers: {})
       reg = Riffer::Mcp::Registration.allocate
       reg.instance_variable_set(:@manifest, manifest)
       reg.instance_variable_set(:@ready, false)
       reg.instance_variable_set(:@tools, [])
       reg.instance_variable_set(:@agent, nil)
+      reg.instance_variable_set(:@discovery_error, discovery_error)
       reg.instance_variable_set(:@mutex, Mutex.new)
       store = Riffer::Mcp::Registry.instance_variable_get(:@store)
       Riffer::Mcp::Registry.instance_variable_get(:@mutex).synchronize { store[name] = reg }
@@ -3572,6 +3573,23 @@ describe Riffer::Agent do
       tools = resolved_tools_for(klass)
       expect(tools).must_include static_tool
       expect(tools).must_include fake_tool_class
+    end
+
+    it "raises ArgumentError when static tools and MCP tools share the same name" do
+      static = fake_tool_class
+      conflicting = Class.new(Riffer::Tool) do
+        identifier "mcp_tool"
+      end
+      inject_ready_registration(name: "srv", tags: [:srv], tools: [conflicting])
+
+      klass = Class.new(Riffer::Agent) do
+        model "mock/riffer-1"
+        uses_tools [static]
+        use_mcp :srv
+      end
+
+      err = expect { resolved_tools_for(klass) }.must_raise Riffer::ArgumentError
+      expect(err.message).must_match(/Duplicate tool names:.*mcp_tool/)
     end
 
     it "returns MCP tools even when uses_tools is not set" do
@@ -3605,6 +3623,30 @@ describe Riffer::Agent do
       end
 
       expect { resolved_tools_for(klass) }.must_raise Riffer::Mcp::NotReadyError
+    end
+
+    it "applies :raise strategy and re-raises discovery_error when discovery failed" do
+      inject_pending_registration(name: "srv", tags: [:srv], discovery_error: RuntimeError.new("mcp list failed"))
+
+      klass = Class.new(Riffer::Agent) do
+        model "mock/riffer-1"
+        use_mcp :srv, on_pending: :raise
+      end
+
+      err = expect { resolved_tools_for(klass) }.must_raise RuntimeError
+      expect(err.message).must_equal "mcp list failed"
+    end
+
+    it "applies :wait strategy and re-raises discovery_error when discovery failed" do
+      inject_pending_registration(name: "srv", tags: [:srv], discovery_error: RuntimeError.new("mcp list failed"))
+
+      klass = Class.new(Riffer::Agent) do
+        model "mock/riffer-1"
+        use_mcp :srv, on_pending: :wait
+      end
+
+      err = expect { resolved_tools_for(klass) }.must_raise RuntimeError
+      expect(err.message).must_equal "mcp list failed"
     end
 
     it "falls back to global on_pending when per-use_mcp on_pending is nil" do

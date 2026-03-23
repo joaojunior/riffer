@@ -12,7 +12,7 @@ module Riffer::Mcp::Registry
   # : ((Hash[Symbol, untyped] | Riffer::Mcp::Manifest)) -> Riffer::Mcp::Registration
   def self.register: (Hash[Symbol, untyped] | Riffer::Mcp::Manifest) -> Riffer::Mcp::Registration
 
-  # Removes a registration by name (+String+ or +Symbol+; coerced with +#to_s+).
+  # Removes a registration by name.
   #
   # : ((String | Symbol)) -> void
   def self.unregister: (String | Symbol) -> void

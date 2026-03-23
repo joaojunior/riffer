@@ -84,6 +84,12 @@ end
 
 MCP tools are appended after any tools declared with `uses_tools`.
 
+Tool names must be unique across `uses_tools` and all included MCP servers; duplicate names raise `Riffer::ArgumentError` when tools are resolved.
+
+### Subclassing
+
+Like [`uses_tools`](03_AGENTS.md#uses_tools), **`use_mcp` is not inherited** from the superclass. Declare `use_mcp` on each agent class that should load MCP tools.
+
 ## Handling Pending Servers
 
 Discovery is asynchronous. When an agent runs before a server is ready, the `on_pending` strategy determines what happens:
@@ -91,8 +97,8 @@ Discovery is asynchronous. When an agent runs before a server is ready, the `on_
 | Strategy | Behaviour |
 |----------|-----------|
 | `:ignore` | Tools from that server are omitted (default) |
-| `:wait` | Blocks until ready or `wait_timeout` seconds, then raises `TimeoutError` |
-| `:raise` | Immediately raises `NotReadyError` |
+| `:wait` | Blocks until ready; if discovery **failed**, re-raises that exception immediately; if still **pending** until `wait_timeout`, raises `TimeoutError` |
+| `:raise` | If discovery **failed**, re-raises that exception; if still **pending**, raises `NotReadyError` |
 
 Set the global default:
 
@@ -128,22 +134,27 @@ reg = Riffer::Mcp.registrations["github"]
 reg.ready?   # => true / false
 reg.tools    # => [<Class:...>, ...]  (Riffer::Tool subclasses)
 reg.agent    # => <Class:...>         (Riffer::Agent subclass)
+reg.discovery_error  # => nil if discovery succeeded or still in progress; Exception if discovery failed
 ```
+
+If discovery fails (e.g. network error), the registration stays not ready and `reg.discovery_error` holds the exception. Nothing is written to stderr; use `on_pending: :wait` or `:raise` (or call `wait_until_ready!`) to surface the failure as a raised exception.
 
 ## Error Classes
 
 | Class | Raised when |
 |-------|-------------|
-| `Riffer::Mcp::NotReadyError` | `on_pending: :raise` and server not ready |
-| `Riffer::Mcp::TimeoutError` | `on_pending: :wait` and `wait_timeout` exceeded |
+| `Riffer::Mcp::NotReadyError` | `on_pending: :raise` and discovery still in progress (not failed) |
+| *(original exception)* | Discovery failed and `on_pending` is `:wait` or `:raise` (re-raised from `reg.discovery_error`) |
+| `Riffer::Mcp::TimeoutError` | `on_pending: :wait`, discovery still in progress, and `wait_timeout` exceeded |
 | `Riffer::Mcp::CredentialsDeniedError` | `credentials` proc returns `nil` during `tools/call` |
 
 All inherit from `Riffer::Mcp::Error < Riffer::Error`.
 
+## Limitations
+
+- **Tool results:** `tools/call` responses are reduced to joined **text** content from MCP `content` items. Non-text parts (e.g. images, embedded resources) are not surfaced in this release.
+- **Session credentials:** When `Riffer.config.mcp.credentials` is set, authenticated tool wrappers may build a **new HTTP client per tool invocation** so headers stay fresh; there is no connection pooling in this release.
+
 ## Requirements
 
-The `mcp` gem is a runtime dependency of Riffer. The HTTP transport requires `faraday`:
-
-```ruby
-gem "faraday"
-```
+The `mcp` and `faraday` gems are runtime dependencies of Riffer (Faraday is required for the MCP HTTP transport). You do not need to add `faraday` to your Gemfile unless you want to pin a specific version.

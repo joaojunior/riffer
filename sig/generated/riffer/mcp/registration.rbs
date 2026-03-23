@@ -14,6 +14,11 @@ class Riffer::Mcp::Registration
   # Generated Riffer::Agent subclass (nil until discovery completes).
   attr_reader agent: singleton(Riffer::Agent)?
 
+  # Exception from failed tool discovery, or +nil+ if discovery succeeded or is still in progress.
+  #
+  # : () -> Exception?
+  def discovery_error: () -> Exception?
+
   # : (Riffer::Mcp::Manifest) -> void
   def initialize: (Riffer::Mcp::Manifest) -> void
 
@@ -24,8 +29,11 @@ class Riffer::Mcp::Registration
 
   # Blocks the calling thread until this registration is ready or the timeout elapses.
   #
-  # Raises Riffer::Mcp::TimeoutError if +Riffer.config.mcp.wait_timeout+ seconds pass
-  # without the registration becoming ready.
+  # If tool discovery failed in the background thread, re-raises that exception
+  # immediately (no wait for +wait_timeout+).
+  #
+  # Raises Riffer::Mcp::TimeoutError if discovery is still in progress and
+  # +Riffer.config.mcp.wait_timeout+ seconds pass without becoming ready.
   #
   # : () -> void
   def wait_until_ready!: () -> void

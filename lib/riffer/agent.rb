@@ -773,6 +773,9 @@ class Riffer::Agent
       reg.wait_until_ready!
       true
     when :raise
+      if (err = reg.discovery_error)
+        raise err
+      end
       raise Riffer::Mcp::NotReadyError, "MCP server '#{reg.manifest.name}' is not ready"
     else
       raise Riffer::ArgumentError, "Invalid mcp on_pending: #{on_pending.inspect}"
@@ -786,11 +789,23 @@ class Riffer::Agent
     Riffer::Mcp::AuthenticatedTool.wrap_all(reg.tools, reg.manifest, matched_tags)
   end
 
-  #--
+  # Raises if two or more tool classes share the same +.name+ (ambiguous dispatch).
+  #
+  #: (Array[singleton(Riffer::Tool)]) -> void
+  def assert_distinct_tool_names!(tool_classes)
+    tally = Hash.new(0) #: Hash[String, Integer]
+    tool_classes.each { |tc| tally[tc.name] += 1 }
+    dupes = tally.filter_map { |name, n| name if n > 1 }
+    return if dupes.empty?
+
+    raise Riffer::ArgumentError, "Duplicate tool names: #{dupes.sort.join(", ")}"
+  end
+
   #: () -> Array[singleton(Riffer::Tool)]
   def resolved_tools
     @resolved_tools ||= begin
       tools = resolve_uses_tools_config + resolve_mcp_tool_classes
+      assert_distinct_tool_names!(tools)
 
       if @skills_state
         activate_tool = @skills_state.adapter.activate_tool

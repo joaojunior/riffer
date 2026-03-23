@@ -16,12 +16,20 @@ class Riffer::Mcp::Registration
   # Generated Riffer::Agent subclass (nil until discovery completes).
   attr_reader :agent #: singleton(Riffer::Agent)?
 
+  # Exception from failed tool discovery, or +nil+ if discovery succeeded or is still in progress.
+  #
+  #: () -> Exception?
+  def discovery_error
+    @mutex.synchronize { @discovery_error }
+  end
+
   #: (Riffer::Mcp::Manifest) -> void
   def initialize(manifest)
     @manifest = manifest
     @ready = false
     @tools = []
     @agent = nil
+    @discovery_error = nil
     @mutex = Mutex.new
     spawn_discovery_thread
   end
@@ -35,14 +43,19 @@ class Riffer::Mcp::Registration
 
   # Blocks the calling thread until this registration is ready or the timeout elapses.
   #
-  # Raises Riffer::Mcp::TimeoutError if +Riffer.config.mcp.wait_timeout+ seconds pass
-  # without the registration becoming ready.
+  # If tool discovery failed in the background thread, re-raises that exception
+  # immediately (no wait for +wait_timeout+).
+  #
+  # Raises Riffer::Mcp::TimeoutError if discovery is still in progress and
+  # +Riffer.config.mcp.wait_timeout+ seconds pass without becoming ready.
   #
   #: () -> void
   def wait_until_ready!
     deadline = Time.now + Riffer.config.mcp.wait_timeout
     loop do
       return if ready?
+      err = discovery_error
+      raise err if err
       raise Riffer::Mcp::TimeoutError, "MCP server '#{@manifest.name}' did not become ready within #{Riffer.config.mcp.wait_timeout}s" if Time.now >= deadline
       sleep 0.05
     end
@@ -63,7 +76,8 @@ class Riffer::Mcp::Registration
         @agent = agent
         @ready = true
       end
-    rescue => _e
+    rescue => e
+      @mutex.synchronize { @discovery_error = e }
       # Leave @ready = false — callers apply the on_pending strategy
     end
   end

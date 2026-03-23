@@ -29,10 +29,6 @@ module Riffer::Mcp
   # Raised when +wait_until_ready!+ exceeds +Riffer.config.mcp.wait_timeout+.
   class TimeoutError < Error; end
 
-  # Raised internally when tool discovery fails. Not surfaced to callers
-  # (the registration is left in a not-ready state instead).
-  class DiscoveryError < Error; end
-
   # Raised when +Riffer.config.mcp.credentials+ returns +nil+ during +tools/call+
   # after the server's tools were included for this run.
   class CredentialsDeniedError < Error; end

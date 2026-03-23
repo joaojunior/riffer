@@ -30,11 +30,6 @@ module Riffer::Mcp
   class TimeoutError < Error
   end
 
-  # Raised internally when tool discovery fails. Not surfaced to callers
-  # (the registration is left in a not-ready state instead).
-  class DiscoveryError < Error
-  end
-
   # Raised when +Riffer.config.mcp.credentials+ returns +nil+ during +tools/call+
   # after the server's tools were included for this run.
   class CredentialsDeniedError < Error
@@ -47,12 +42,12 @@ module Riffer::Mcp
   # : ((Hash[Symbol, untyped] | Riffer::Mcp::Manifest)) -> Riffer::Mcp::Registration
   def self.register: (Hash[Symbol, untyped] | Riffer::Mcp::Manifest) -> Riffer::Mcp::Registration
 
-  # Removes a registration by name (+String+ or +Symbol+; matched via +#to_s+).
+  # Removes a registration by name.
   #
   # Subsequent agent runs will not see tools from this server.
   #
-  # : ((String | Symbol)) -> void
-  def self.unregister: (String | Symbol) -> void
+  # : (String) -> void
+  def self.unregister: (String) -> void
 
   # Returns all current registrations keyed by name (for introspection).
   #

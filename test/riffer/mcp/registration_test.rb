@@ -85,6 +85,13 @@ describe Riffer::Mcp::Registration do
       assert_nil reg.wait_until_ready!
     end
 
+    it "re-raises discovery_error immediately when discovery failed" do
+      reg = build_stub_registration(manifest, ready: false)
+      reg.instance_variable_set(:@discovery_error, RuntimeError.new("discovery failed"))
+      err = assert_raises(RuntimeError) { reg.wait_until_ready! }
+      assert_equal "discovery failed", err.message
+    end
+
     it "raises TimeoutError when deadline passes without becoming ready" do
       reg = build_stub_registration(manifest, ready: false)
       original_timeout = Riffer.config.mcp.wait_timeout
@@ -158,11 +165,16 @@ describe Riffer::Mcp::Registration do
       reg.instance_variable_set(:@ready, false)
       reg.instance_variable_set(:@tools, [])
       reg.instance_variable_set(:@agent, nil)
+      reg.instance_variable_set(:@discovery_error, nil)
       reg.instance_variable_set(:@mutex, Mutex.new)
       reg.injected_client = bad_client
       reg.send(:spawn_discovery_thread).join
 
       refute reg.ready?
+      assert_instance_of RuntimeError, reg.discovery_error
+      assert_equal "connection refused", reg.discovery_error.message
+      err = assert_raises(RuntimeError) { reg.wait_until_ready! }
+      assert_equal "connection refused", err.message
     end
   end
 end

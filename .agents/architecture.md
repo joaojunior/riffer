@@ -154,7 +154,7 @@ end
 
 Key types: `Manifest` (`discovery_headers`, optional `credentials_scope` hint), `Registry` (thread-safe store), `Registration` (spawns discovery thread → `ToolFactory` → `AgentFactory`), `Client` (wraps `mcp` gem), `AuthenticatedTool` (wraps MCP tools when `credentials` proc is set).
 
-**on_pending strategies** (global default `:ignore`): `:ignore` skips the server, `:wait` blocks up to `wait_timeout` seconds, `:raise` raises `NotReadyError`.
+**on_pending strategies** (global default `:ignore`): `:ignore` skips the server; `:wait` blocks until ready, re-raises failed discovery immediately, or times out; `:raise` re-raises failed discovery or `NotReadyError` while still pending.
 
 ## Key Patterns
 
