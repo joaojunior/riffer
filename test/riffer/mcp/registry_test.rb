@@ -43,6 +43,12 @@ describe Riffer::Mcp::Registry do
       refute Riffer::Mcp::Registry.registrations.key?("srv")
     end
 
+    it "removes a registration registered with a symbol name" do
+      Riffer::Mcp::Registry.register(name: :github, tags: [], endpoint: "https://x.com")
+      Riffer::Mcp::Registry.unregister("github")
+      refute Riffer::Mcp::Registry.registrations.key?("github")
+    end
+
     it "does not raise when name is not registered" do
       assert_nil Riffer::Mcp::Registry.unregister("nonexistent")
     end

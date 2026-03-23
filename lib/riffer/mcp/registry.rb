@@ -25,7 +25,7 @@ module Riffer::Mcp::Registry
 
     # Removes a registration by name.
     #
-    #: (String) -> void
+    #: ((String | Symbol)) -> void
     def unregister(name)
       @mutex.synchronize { @store.delete(name.to_s) }
     end

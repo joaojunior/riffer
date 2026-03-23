@@ -6,7 +6,8 @@ require "mcp"
 # Thin wrapper around the MCP Ruby SDK client (mcp gem v0.8+).
 #
 # Resolves headers (if a Proc) once at initialization, then provides
-# +tools_list+ and +tools_call+ for use by the discovery thread and tool classes.
+# +tools_list+ and +tools_call+. Used for discovery (+Manifest#discovery_headers+)
+# and for +tools/call+ when no +credentials+ proc is configured.
 #
 # MCP gem API used:
 #   MCP::Client::HTTP.new(url:, headers:)  — HTTP transport (requires faraday)

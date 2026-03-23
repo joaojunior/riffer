@@ -63,6 +63,17 @@ class Riffer::Config
                 | ({ ?judge_model: untyped }) -> instance
   end
 
+  class Mcp < Struct[untyped]
+    attr_accessor on_pending(): untyped
+
+    attr_accessor wait_timeout(): untyped
+
+    attr_accessor credentials(): untyped
+
+    def self.new: (?on_pending: untyped, ?wait_timeout: untyped, ?credentials: untyped) -> instance
+                | ({ ?on_pending: untyped, ?wait_timeout: untyped, ?credentials: untyped }) -> instance
+  end
+
   # Amazon Bedrock configuration (Struct with +api_token+ and +region+).
   attr_reader amazon_bedrock: Riffer::Config::AmazonBedrock
 
@@ -80,6 +91,20 @@ class Riffer::Config
 
   # Evals configuration (Struct with +judge_model+).
   attr_reader evals: Riffer::Config::Evals
+
+  # MCP configuration (Struct with +on_pending+, +wait_timeout+, +credentials+).
+  #
+  # +on_pending+ controls agent behaviour when an MCP server has not finished
+  # discovery: +:ignore+ (default) skips the server, +:wait+ blocks until ready,
+  # +:raise+ raises Riffer::Mcp::NotReadyError.
+  #
+  # +wait_timeout+ is the maximum seconds to wait when +on_pending: :wait+.
+  #
+  # +credentials+ is an optional Proc for per-run MCP +tools/call+ HTTP headers.
+  # Signature: +->(manifest:, matched_tags:, context:) { Hash or nil }+.
+  # +nil+ from the proc at tool-resolution time omits that server's tools; +nil+
+  # at tool-call time raises Riffer::Mcp::CredentialsDeniedError.
+  attr_reader mcp: Riffer::Config::Mcp
 
   # Global tool runtime configuration (experimental).
   #

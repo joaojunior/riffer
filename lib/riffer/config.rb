@@ -21,7 +21,7 @@ class Riffer::Config
   Gemini = Struct.new(:api_key, :open_timeout, :read_timeout, keyword_init: true)
   OpenAI = Struct.new(:api_key, keyword_init: true)
   Evals = Struct.new(:judge_model, keyword_init: true)
-  Mcp = Struct.new(:on_pending, :wait_timeout, keyword_init: true)
+  Mcp = Struct.new(:on_pending, :wait_timeout, :credentials, keyword_init: true)
 
   # Amazon Bedrock configuration (Struct with +api_token+ and +region+).
   attr_reader :amazon_bedrock #: Riffer::Config::AmazonBedrock
@@ -41,13 +41,18 @@ class Riffer::Config
   # Evals configuration (Struct with +judge_model+).
   attr_reader :evals #: Riffer::Config::Evals
 
-  # MCP configuration (Struct with +on_pending+ and +wait_timeout+).
+  # MCP configuration (Struct with +on_pending+, +wait_timeout+, +credentials+).
   #
   # +on_pending+ controls agent behaviour when an MCP server has not finished
   # discovery: +:ignore+ (default) skips the server, +:wait+ blocks until ready,
   # +:raise+ raises Riffer::Mcp::NotReadyError.
   #
   # +wait_timeout+ is the maximum seconds to wait when +on_pending: :wait+.
+  #
+  # +credentials+ is an optional Proc for per-run MCP +tools/call+ HTTP headers.
+  # Signature: +->(manifest:, matched_tags:, context:) { Hash or nil }+.
+  # +nil+ from the proc at tool-resolution time omits that server's tools; +nil+
+  # at tool-call time raises Riffer::Mcp::CredentialsDeniedError.
   attr_reader :mcp #: Riffer::Config::Mcp
 
   # Global tool runtime configuration (experimental).
@@ -78,7 +83,7 @@ class Riffer::Config
     @gemini = Gemini.new
     @openai = OpenAI.new
     @evals = Evals.new
-    @mcp = Mcp.new(on_pending: :ignore, wait_timeout: 10)
+    @mcp = Mcp.new(on_pending: :ignore, wait_timeout: 10, credentials: nil)
     @tool_runtime = Riffer::ToolRuntime::Inline.new
   end
 end

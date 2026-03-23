@@ -81,5 +81,17 @@ describe Riffer::Config do
       config.mcp.wait_timeout = 30
       expect(config.mcp.wait_timeout).must_equal 30
     end
+
+    it "initializes credentials to nil" do
+      config = Riffer::Config.new
+      expect(config.mcp.credentials).must_be_nil
+    end
+
+    it "allows setting credentials proc" do
+      config = Riffer::Config.new
+      cred = ->(manifest:, matched_tags:, context:) { {} }
+      config.mcp.credentials = cred
+      expect(config.mcp.credentials).must_equal cred
+    end
   end
 end

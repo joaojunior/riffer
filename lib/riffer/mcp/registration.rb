@@ -70,6 +70,6 @@ class Riffer::Mcp::Registration
 
   #: () -> Riffer::Mcp::Client
   def build_client
-    Riffer::Mcp::Client.new(endpoint: @manifest.endpoint, headers: @manifest.headers || {})
+    Riffer::Mcp::Client.new(endpoint: @manifest.endpoint, headers: @manifest.discovery_headers || {})
   end
 end

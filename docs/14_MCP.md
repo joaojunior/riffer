@@ -15,19 +15,50 @@ Riffer::Mcp.register(
   name: "github",        # unique identifier
   tags: [:github],       # agents opt-in by tag
   endpoint: "https://mcp.github.com",
-  headers: -> { {Authorization: "Bearer #{ENV['GITHUB_TOKEN']}"} }
+  discovery_headers: -> { {"Authorization" => "Bearer #{ENV['GITHUB_TOKEN']}"} }
 )
 ```
 
 `register` returns immediately. Tool discovery runs in a background thread. Use `on_pending` (see below) to control agent behaviour while discovery is in progress.
 
-`headers` accepts a Hash or a Proc. The Proc is called once when the client is initialized — useful for tokens that may rotate between registrations.
+### Discovery headers
+
+`discovery_headers` is a Hash or Proc used **only** for MCP `tools/list` when the discovery client is built (the Proc runs once at that time). Use it for bootstrap identity: service account, env-based token, or `{}` if listing is unauthenticated.
+
+Optional **`credentials_scope`** on the manifest documents whether you expect invocation headers to depend on tenant and/or user keys in the agent `context` (e.g. `:global`, `:tenant`, `:user`). It does **not** store tenant or user ids — only a hint for your app and docs. For multi-tenant apps, `:user` often means “user in tenant” and your `context` may include both tenant and user identifiers.
+
+## Session credentials callback
+
+When **`Riffer.config.mcp.credentials`** is set to a Proc, each MCP `tools/call` resolves HTTP headers through that callback instead of reusing `discovery_headers`.
+
+**Signature:**
+
+```ruby
+Riffer.configure do |config|
+  config.mcp.credentials = lambda do |manifest:, matched_tags:, context:|
+    # return nil to omit this server's tools for this agent run (at resolve time)
+    # return Hash<String,String> headers for tools/call (e.g. Authorization)
+  end
+end
+```
+
+- **`manifest`** — the server's `Riffer::Mcp::Manifest`.
+- **`matched_tags`** — intersection of the agent's `use_mcp` tags and `manifest.tags` for this registration (unioned across multiple `use_mcp` lines).
+- **`context`** — the same hash passed to `generate` / `stream` for this run.
+
+**Resolve time:** Before tools are exposed to the model, the proc is invoked once per matching registration. If it returns **`nil`**, that server's tools are omitted for this run (e.g. tenant has no integration).
+
+**Call time:** Authenticated tool wrappers invoke the proc again for each execution. If it returns **`nil`**, `Riffer::Mcp::CredentialsDeniedError` is raised.
+
+If **`credentials` is unset**, discovery and `tools/call` share one client built from `discovery_headers` (same behaviour as a single static token for both list and call).
 
 ## Tags
 
 Tags are entirely up to your application; Riffer does not define a canonical vocabulary. Each server may declare multiple tags; an agent includes every registration that shares **any** tag passed to `use_mcp`.
 
 When MCPs are registered, assign **stable bucket tags** so agent classes can opt in without listing every server name—for example `tags: [:connectors, :github]` with `use_mcp :connectors` for all enabled connectors, or `use_mcp :github` for that integration only.
+
+Registrations are **global** (endpoint + tags); **tenant and user** access are enforced in your **`credentials`** proc and whatever you put in **`context`**, not by putting ids on the manifest.
 
 ## Opting an Agent In
 
@@ -85,7 +116,7 @@ use_mcp :jira, on_pending: :ignore
 Riffer::Mcp.unregister("github")
 ```
 
-Subsequent agent runs will not include tools from that server. Call `register` again (with fresh headers if needed) to re-register.
+Subsequent agent runs will not include tools from that server. Call `register` again (with fresh `discovery_headers` if needed) to re-register.
 
 ## Introspection
 
@@ -105,8 +136,9 @@ reg.agent    # => <Class:...>         (Riffer::Agent subclass)
 |-------|-------------|
 | `Riffer::Mcp::NotReadyError` | `on_pending: :raise` and server not ready |
 | `Riffer::Mcp::TimeoutError` | `on_pending: :wait` and `wait_timeout` exceeded |
+| `Riffer::Mcp::CredentialsDeniedError` | `credentials` proc returns `nil` during `tools/call` |
 
-Both inherit from `Riffer::Mcp::Error < Riffer::Error`.
+All inherit from `Riffer::Mcp::Error < Riffer::Error`.
 
 ## Requirements
 

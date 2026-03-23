@@ -1,0 +1,40 @@
+# Generated from lib/riffer/mcp/registration.rb with RBS::Inline
+
+# Per-server state managed by Riffer::Mcp::Registry.
+#
+# Created when a server is registered. Spawns a background thread to discover
+# tools via the MCP +tools/list+ call, then generates tool and agent classes.
+class Riffer::Mcp::Registration
+  # The manifest that describes this server.
+  attr_reader manifest: Riffer::Mcp::Manifest
+
+  # Generated Riffer::Tool subclasses (empty until discovery completes).
+  attr_reader tools: Array[singleton(Riffer::Tool)]
+
+  # Generated Riffer::Agent subclass (nil until discovery completes).
+  attr_reader agent: singleton(Riffer::Agent)?
+
+  # : (Riffer::Mcp::Manifest) -> void
+  def initialize: (Riffer::Mcp::Manifest) -> void
+
+  # Returns true once tool discovery has completed successfully.
+  #
+  # : () -> bool
+  def ready?: () -> bool
+
+  # Blocks the calling thread until this registration is ready or the timeout elapses.
+  #
+  # Raises Riffer::Mcp::TimeoutError if +Riffer.config.mcp.wait_timeout+ seconds pass
+  # without the registration becoming ready.
+  #
+  # : () -> void
+  def wait_until_ready!: () -> void
+
+  private
+
+  # : () -> Thread
+  def spawn_discovery_thread: () -> Thread
+
+  # : () -> Riffer::Mcp::Client
+  def build_client: () -> Riffer::Mcp::Client
+end

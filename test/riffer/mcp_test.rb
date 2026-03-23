@@ -45,6 +45,10 @@ describe Riffer::Mcp do
       assert Riffer::Mcp::DiscoveryError < Riffer::Mcp::Error
     end
 
+    it "CredentialsDeniedError is a Riffer::Mcp::Error" do
+      assert Riffer::Mcp::CredentialsDeniedError < Riffer::Mcp::Error
+    end
+
     it "Mcp::Error is a Riffer::Error" do
       assert Riffer::Mcp::Error < Riffer::Error
     end

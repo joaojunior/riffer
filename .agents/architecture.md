@@ -139,8 +139,11 @@ Riffer::Mcp.register(
   name: "github",
   tags: [:github],
   endpoint: "https://mcp.github.com",
-  headers: -> { {Authorization: "Bearer #{ENV['GITHUB_TOKEN']}"} }
+  discovery_headers: -> { {"Authorization" => "Bearer #{ENV['GITHUB_TOKEN']}"} }
 )
+
+# Optional: per-run tools/call headers (see docs/10_MCP.md)
+Riffer.configure { |c| c.mcp.credentials = ->(manifest:, matched_tags:, context:) { ... } }
 
 class ResearchAgent < Riffer::Agent
   model "openai/gpt-4o"
@@ -149,7 +152,7 @@ class ResearchAgent < Riffer::Agent
 end
 ```
 
-Key types: `Manifest` (value object), `Registry` (thread-safe store), `Registration` (spawns discovery thread → `ToolFactory` → `AgentFactory`), `Client` (wraps `mcp` gem).
+Key types: `Manifest` (`discovery_headers`, optional `credentials_scope` hint), `Registry` (thread-safe store), `Registration` (spawns discovery thread → `ToolFactory` → `AgentFactory`), `Client` (wraps `mcp` gem), `AuthenticatedTool` (wraps MCP tools when `credentials` proc is set).
 
 **on_pending strategies** (global default `:ignore`): `:ignore` skips the server, `:wait` blocks up to `wait_timeout` seconds, `:raise` raises `NotReadyError`.
 
@@ -226,6 +229,7 @@ lib/
       registry.rb        # Thread-safe global store
       registration.rb    # Per-server state + discovery thread
       client.rb          # Thin mcp gem wrapper
+      authenticated_tool.rb  # Wraps MCP tools when credentials proc is configured
       tool_factory.rb    # Generates Riffer::Tool subclasses from MCP tools
       agent_factory.rb   # Generates Riffer::Agent container per server
 test/
