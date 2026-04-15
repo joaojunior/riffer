@@ -337,11 +337,12 @@ class Riffer::Agent
   # : () -> String
   def resolve_model: () -> String
 
-  # Tools from +uses_tools+ only (static array or Proc result).
-  #
+  # Returns tools from +uses_tools+ only (static array or Proc result).
+  # --
   # : () -> Array[singleton(Riffer::Tool)]
   def resolve_uses_tools_config: () -> Array[singleton(Riffer::Tool)]
 
+  # --
   # : () -> Array[singleton(Riffer::Tool)]
   def resolve_mcp_tool_classes: () -> Array[singleton(Riffer::Tool)]
 
