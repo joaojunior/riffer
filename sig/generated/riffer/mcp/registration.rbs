@@ -22,6 +22,12 @@ class Riffer::Mcp::Registration
   # : (Riffer::Mcp::Manifest) -> void
   def initialize: (Riffer::Mcp::Manifest) -> void
 
+  # Retires this registration, preventing the discovery thread from publishing
+  # state and killing it if still running.
+  #
+  # : () -> void
+  def retire!: () -> void
+
   # Returns true once tool discovery has completed successfully.
   #
   # : () -> bool

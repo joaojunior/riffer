@@ -3,13 +3,8 @@
 require "test_helper"
 
 describe Riffer::Mcp::Registry do
-  before do
-    Riffer::Mcp::Registry.reset!
-  end
-
-  after do
-    Riffer::Mcp::Registry.reset!
-  end
+  before { clear_mcp_registry! }
+  after { clear_mcp_registry! }
 
   describe ".register" do
     it "accepts a Manifest instance" do
@@ -34,6 +29,12 @@ describe Riffer::Mcp::Registry do
       assert_equal reg2, Riffer::Mcp::Registry.registrations["srv"]
       assert_equal "https://b.com", Riffer::Mcp::Registry.registrations["srv"].manifest.endpoint
     end
+
+    it "retires the previous registration when replacing" do
+      old_reg = Riffer::Mcp::Registry.register(name: "srv", tags: [], endpoint: "https://a.com")
+      Riffer::Mcp::Registry.register(name: "srv", tags: [], endpoint: "https://b.com")
+      assert old_reg.instance_variable_get(:@cancelled)
+    end
   end
 
   describe ".unregister" do
@@ -51,6 +52,12 @@ describe Riffer::Mcp::Registry do
 
     it "does not raise when name is not registered" do
       assert_nil Riffer::Mcp::Registry.unregister("nonexistent")
+    end
+
+    it "retires the registration when unregistered" do
+      reg = Riffer::Mcp::Registry.register(name: "srv", tags: [], endpoint: "https://x.com")
+      Riffer::Mcp::Registry.unregister("srv")
+      assert reg.instance_variable_get(:@cancelled)
     end
   end
 

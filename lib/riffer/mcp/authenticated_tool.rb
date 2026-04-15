@@ -19,6 +19,8 @@ module Riffer::Mcp::AuthenticatedTool
     tags = matched_tags
 
     Class.new(Riffer::Tool) do
+      @identifier = inner.identifier
+
       define_singleton_method(:name) { inner.name }
       define_singleton_method(:description) { inner.description }
       define_singleton_method(:parameters_schema) { |strict: false| inner.parameters_schema(strict: strict) }

@@ -45,6 +45,16 @@ class Riffer::Mcp::Client
   def tools_call(name, arguments = {})
     tool = MCP::Client::Tool.new(name: name, description: nil, input_schema: nil)
     response = @client.call_tool(tool: tool, arguments: arguments)
+
+    if response["error"]
+      raise Riffer::Error, response.dig("error", "message") || "MCP tool call failed"
+    end
+
+    if response.dig("result", "isError")
+      message = (response.dig("result", "content") || []).filter_map { |item| item["text"] }.join
+      raise Riffer::Error, message.empty? ? "MCP tool '#{name}' failed" : message
+    end
+
     content = response.dig("result", "content") || []
     content.filter_map { |item| item["text"] }.join
   end

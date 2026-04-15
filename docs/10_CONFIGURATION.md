@@ -36,7 +36,7 @@ For provider credentials and setup, see the individual [Provider guides](provide
 
 ### MCP (Model Context Protocol)
 
-Optional settings for [MCP server integrations](10_MCP.md):
+Optional settings for [MCP server integrations](14_MCP.md):
 
 | Option | Description |
 | ------ | ----------- |
@@ -54,7 +54,7 @@ Riffer.configure do |config|
 end
 ```
 
-See [MCP](10_MCP.md) for registration, tags, and agent `use_mcp`.
+See [MCP](14_MCP.md) for registration, tags, and agent `use_mcp`.
 
 ### Tool Runtime (Experimental)
 

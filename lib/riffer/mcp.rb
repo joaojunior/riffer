@@ -4,7 +4,7 @@
 # Riffer::Mcp provides integration with Model Context Protocol (MCP) servers.
 #
 # Register MCP servers globally; agents opt-in by tag via the +use_mcp+ DSL.
-# Tags are application-defined; see +docs/10_MCP.md+ (Tags section).
+# Tags are application-defined; see +docs/14_MCP.md+ (Tags section).
 #
 #   Riffer::Mcp.register(
 #     name: "github",

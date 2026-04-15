@@ -737,7 +737,7 @@ class Riffer::Agent
     return [] if configs.empty?
 
     cred = Riffer.config.mcp.credentials
-    ctx = @context || {}
+    ctx = @context
     gather_mcp_registrations_with_tags(configs).flat_map do |reg, tag_accum|
       matched_tags = tag_accum.uniq
       mcp_tools_for_registration(reg, matched_tags, cred, ctx)

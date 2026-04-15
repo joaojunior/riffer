@@ -27,11 +27,22 @@ class Riffer::Mcp::Registration
   def initialize(manifest)
     @manifest = manifest
     @ready = false
+    @cancelled = false
     @tools = []
     @agent = nil
     @discovery_error = nil
+    @discovery_thread = nil
     @mutex = Mutex.new
     spawn_discovery_thread
+  end
+
+  # Retires this registration, preventing the discovery thread from publishing
+  # state and killing it if still running.
+  #
+  #: () -> void
+  def retire!
+    @mutex.synchronize { @cancelled = true }
+    @discovery_thread&.kill
   end
 
   # Returns true once tool discovery has completed successfully.
@@ -65,19 +76,23 @@ class Riffer::Mcp::Registration
 
   #: () -> Thread
   def spawn_discovery_thread
-    Thread.new do
+    @discovery_thread = Thread.new do
       client = build_client
       tool_defs = client.tools_list
       tools = Riffer::Mcp::ToolFactory.build(client, tool_defs)
       agent = Riffer::Mcp::AgentFactory.build(@manifest, tools)
 
       @mutex.synchronize do
-        @tools = tools
+        next if @cancelled
+        @tools = tools.freeze
         @agent = agent
         @ready = true
       end
     rescue => e
-      @mutex.synchronize { @discovery_error = e }
+      @mutex.synchronize do
+        next if @cancelled
+        @discovery_error = e
+      end
       # Leave @ready = false — callers apply the on_pending strategy
     end
   end

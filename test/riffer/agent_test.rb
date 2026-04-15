@@ -3486,7 +3486,7 @@ describe Riffer::Agent do
   end
 
   describe ".use_mcp / .mcp_configs" do
-    after { Riffer::Mcp::Registry.reset! }
+    after { clear_mcp_registry! }
 
     it "returns empty array when no use_mcp calls have been made" do
       klass = Class.new(Riffer::Agent)
@@ -3518,7 +3518,7 @@ describe Riffer::Agent do
   end
 
   describe "#resolved_tools with use_mcp" do
-    after { Riffer::Mcp::Registry.reset! }
+    after { clear_mcp_registry! }
 
     let(:fake_tool_class) do
       klass = Class.new(Riffer::Tool)
@@ -3651,6 +3651,7 @@ describe Riffer::Agent do
 
     it "falls back to global on_pending when per-use_mcp on_pending is nil" do
       inject_pending_registration(name: "srv", tags: [:srv])
+      prev_on_pending = Riffer.config.mcp.on_pending
       Riffer.config.mcp.on_pending = :ignore
 
       klass = Class.new(Riffer::Agent) do
@@ -3660,7 +3661,7 @@ describe Riffer::Agent do
 
       expect(resolved_tools_for(klass)).must_be_empty
     ensure
-      Riffer.config.mcp.on_pending = :ignore
+      Riffer.config.mcp.on_pending = prev_on_pending
     end
 
     it "omits MCP tools when credentials proc returns nil at resolve time" do

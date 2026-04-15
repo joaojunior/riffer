@@ -28,9 +28,4 @@ module Riffer::Mcp::Registry
   #
   # : (Array[Symbol]) -> Array[Riffer::Mcp::Registration]
   def self.find_by_tags: (Array[Symbol]) -> Array[Riffer::Mcp::Registration]
-
-  # Clears all registrations. Intended for use in tests only.
-  #
-  # : () -> void
-  def self.reset!: () -> void
 end

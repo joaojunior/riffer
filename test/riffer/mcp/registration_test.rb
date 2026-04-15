@@ -12,8 +12,10 @@ describe Riffer::Mcp::Registration do
     reg = Riffer::Mcp::Registration.allocate
     reg.instance_variable_set(:@manifest, manifest)
     reg.instance_variable_set(:@ready, ready)
+    reg.instance_variable_set(:@cancelled, false)
     reg.instance_variable_set(:@tools, tools)
     reg.instance_variable_set(:@agent, agent)
+    reg.instance_variable_set(:@discovery_thread, nil)
     reg.instance_variable_set(:@mutex, Mutex.new)
     reg
   end
@@ -116,6 +118,55 @@ describe Riffer::Mcp::Registration do
       assert_nil reg.wait_until_ready!
     ensure
       Riffer.config.mcp.wait_timeout = original_timeout
+    end
+  end
+
+  describe "#retire!" do
+    it "sets the cancelled flag" do
+      reg = build_stub_registration(manifest)
+      reg.retire!
+      assert reg.instance_variable_get(:@cancelled)
+    end
+
+    it "prevents a completing discovery thread from publishing state" do
+      latch = Mutex.new
+      latch.lock
+
+      klass = Class.new(Riffer::Mcp::Registration) do
+        attr_writer :latch
+
+        private
+
+        def build_client
+          client = Object.new
+          l = @latch
+          client.define_singleton_method(:tools_list) {
+            l.lock
+            l.unlock
+            []
+          }
+          client
+        end
+      end
+
+      reg = klass.allocate
+      reg.instance_variable_set(:@manifest, manifest)
+      reg.instance_variable_set(:@ready, false)
+      reg.instance_variable_set(:@cancelled, false)
+      reg.instance_variable_set(:@tools, [])
+      reg.instance_variable_set(:@agent, nil)
+      reg.instance_variable_set(:@discovery_error, nil)
+      reg.instance_variable_set(:@discovery_thread, nil)
+      reg.instance_variable_set(:@mutex, Mutex.new)
+      reg.latch = latch
+
+      thread = reg.send(:spawn_discovery_thread)
+      reg.retire!
+      latch.unlock
+      thread.join
+
+      refute reg.ready?
+      assert_empty reg.tools
     end
   end
 

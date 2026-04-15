@@ -3,8 +3,8 @@
 require "test_helper"
 
 describe Riffer::Mcp do
-  before { Riffer::Mcp::Registry.reset! }
-  after { Riffer::Mcp::Registry.reset! }
+  before { clear_mcp_registry! }
+  after { clear_mcp_registry! }
 
   describe ".register" do
     it "returns a Registration" do

@@ -19,7 +19,12 @@ module Riffer::Mcp::Registry
     def register(manifest_or_hash)
       manifest = manifest_or_hash.is_a?(Riffer::Mcp::Manifest) ? manifest_or_hash : Riffer::Mcp::Manifest.new(**manifest_or_hash)
       registration = Riffer::Mcp::Registration.new(manifest)
-      @mutex.synchronize { @store[manifest.name] = registration }
+      old = @mutex.synchronize do
+        previous = @store[manifest.name]
+        @store[manifest.name] = registration
+        previous
+      end
+      old&.retire!
       registration
     end
 
@@ -27,7 +32,8 @@ module Riffer::Mcp::Registry
     #
     #: ((String | Symbol)) -> void
     def unregister(name)
-      @mutex.synchronize { @store.delete(name.to_s) }
+      removed = @mutex.synchronize { @store.delete(name.to_s) }
+      removed&.retire!
     end
 
     # Returns a frozen snapshot of all current registrations.
@@ -47,13 +53,6 @@ module Riffer::Mcp::Registry
       @mutex.synchronize do
         @store.values.select { |reg| (reg.manifest.tags & normalized).any? }
       end
-    end
-
-    # Clears all registrations. Intended for use in tests only.
-    #
-    #: () -> void
-    def reset!
-      @mutex.synchronize { @store.clear }
     end
   end
 end

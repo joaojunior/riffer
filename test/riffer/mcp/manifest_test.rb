@@ -8,6 +8,7 @@ describe Riffer::Mcp::Manifest do
       manifest = Riffer::Mcp::Manifest.new(name: "github", tags: [:github], endpoint: "https://example.com", discovery_headers: {})
       assert_equal "github", manifest.name
       assert_equal "https://example.com", manifest.endpoint
+      assert_equal({}, manifest.discovery_headers)
     end
 
     it "normalizes name to a string" do
@@ -44,6 +45,31 @@ describe Riffer::Mcp::Manifest do
     it "allows nil credentials_scope" do
       manifest = Riffer::Mcp::Manifest.new(name: "srv", tags: [], endpoint: "https://x.com")
       assert_nil manifest.credentials_scope
+    end
+
+    it "strips whitespace from name" do
+      manifest = Riffer::Mcp::Manifest.new(name: "  srv  ", tags: [], endpoint: "https://x.com")
+      assert_equal "srv", manifest.name
+    end
+
+    it "raises when name is blank" do
+      err = assert_raises(Riffer::ArgumentError) { Riffer::Mcp::Manifest.new(name: "  ", tags: [], endpoint: "https://x.com") }
+      assert_match(/name is required/, err.message)
+    end
+
+    it "strips whitespace from endpoint" do
+      manifest = Riffer::Mcp::Manifest.new(name: "srv", tags: [], endpoint: "  https://x.com  ")
+      assert_equal "https://x.com", manifest.endpoint
+    end
+
+    it "raises when endpoint is not an https URL" do
+      err = assert_raises(Riffer::ArgumentError) { Riffer::Mcp::Manifest.new(name: "srv", tags: [], endpoint: "not-a-url") }
+      assert_match(/valid HTTPS URL/, err.message)
+    end
+
+    it "raises when endpoint is http rather than https" do
+      err = assert_raises(Riffer::ArgumentError) { Riffer::Mcp::Manifest.new(name: "srv", tags: [], endpoint: "http://localhost:3000") }
+      assert_match(/valid HTTPS URL/, err.message)
     end
   end
 end
