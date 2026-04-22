@@ -4,10 +4,20 @@ require "test_helper"
 
 describe Riffer::Workflow do
   let(:agent_class) do
-    Class.new(Riffer::Agent) do
+    agent_klass = Class.new(Riffer::Agent) do
       identifier "test-agent"
       model "mock/riffer-1"
       instructions "You are a helpful assistant."
+    end
+
+    Class.new(Riffer::Workflow::Step) do
+      define_method(:call) do |**kwargs|
+        context = kwargs.delete(:context)
+        prompt = kwargs.values.join(" ")
+
+        agent = agent_klass.new
+        agent.generate(prompt, context:)
+      end
     end
   end
 
@@ -25,7 +35,7 @@ describe Riffer::Workflow do
   end
 
   let(:weather_tool_class) do
-    Class.new(Riffer::Tool) do
+    tool_klass = Class.new(Riffer::Tool) do
       description "Gets the current weather"
 
       params do
@@ -37,25 +47,49 @@ describe Riffer::Workflow do
         text("Weather in #{city}: 20 #{units || "celsius"}")
       end
     end
+
+    Class.new(Riffer::Workflow::Step) do
+      define_method(:call) do |**kwargs|
+        kwargs[:context] ||= {}
+        tool = tool_klass.new
+        tool.call(**kwargs)
+      end
+    end
   end
 
   let(:simple_tool_class) do
-    Class.new(Riffer::Tool) do
+    tool_klass = Class.new(Riffer::Tool) do
       description "A simple tool"
 
       def call(context:, **kwargs)
         text("Simple result")
       end
     end
+
+    Class.new(Riffer::Workflow::Step) do
+      define_method(:call) do |**kwargs|
+        kwargs[:context] ||= {}
+        tool = tool_klass.new
+        tool.call(**kwargs)
+      end
+    end
   end
 
   let(:slow_tool_class) do
-    Class.new(Riffer::Tool) do
+    tool_klass = Class.new(Riffer::Tool) do
       description "A simple tool"
 
       def call(context:, **kwargs)
         sleep 0.02
         text("Simple result")
+      end
+    end
+
+    Class.new(Riffer::Workflow::Step) do
+      define_method(:call) do |**kwargs|
+        kwargs[:context] ||= {}
+        tool = tool_klass.new
+        tool.call(**kwargs)
       end
     end
   end
@@ -81,7 +115,7 @@ describe Riffer::Workflow do
         expect(result.error?).must_equal true
         expect(result.success?).must_equal false
         expect(result.error_type).must_equal :validation_error
-        expect(result.error_message).must_equal "Invalid model string: "
+        expect(result.error_message).must_equal "Step execution with incorrect input: {}. Invalid model string: "
       end
     end
 
@@ -304,10 +338,19 @@ describe Riffer::Workflow do
     describe "workflow with multiple agents, tools, and workflows steps with dependencies" do
       let(:simple_workflow_class) do
         captured_agent = agent_class
-        Class.new(Riffer::Workflow) do
+        workflow_klass = Class.new(Riffer::Workflow) do
           identifier "riffer/workflow"
 
           step :search1, captured_agent
+        end
+
+        Class.new(Riffer::Workflow::Step) do
+          define_method(:call) do |**kwargs|
+            context = kwargs.delete(:context)
+
+            workflow = workflow_klass.new
+            workflow.run(context: context, **kwargs)
+          end
         end
       end
       let(:workflow_class) do

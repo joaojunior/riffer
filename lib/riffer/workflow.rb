@@ -22,11 +22,20 @@
 #     instructions 'You are a helpful assistant.'
 #   end
 #
+#   class MyStep < Riffer::Workflow::Step
+#     def call(**kwargs)
+#       context = kwargs.delete(:context)
+#       prompt = kwargs.values.join(" ")
+#       agent = MyAgent.new
+#       agent.generate(prompt, context: context)
+#     end
+#   end
+#
 #   class MyWorkflow < Riffer::Workflow
-#     step :search1, MyAgent
-#     step :search2, MyAgent, depends_on: :search1
-#     step :search3, MyAgent
-#     step :search4, MyAgent, depends_on: [:search1, :search2]
+#     step :search1, MyStep
+#     step :search2, MyStep, depends_on: :search1
+#     step :search3, MyStep
+#     step :search4, MyStep, depends_on: [:search1, :search2]
 #   end
 #
 #   workflow = MyWorkflow.new
@@ -46,11 +55,11 @@ class Riffer::Workflow
     @steps ||= []
   end
 
-  # 'DSL' method to define a step, for now accepting just Riffer::Agent and Riffer::Tool,
+  # 'DSL' method to define a step
   # we will update it later to also accept Riffer::Workflow
   #
   #--
-  #: (Symbol, singleton(Riffer::Agent|Riffer::Tool|Riffer::Workflow), ?Hash[Symbol, untyped]) -> Array[Hash[Symbol, untyped]]
+  #: (Symbol, singleton(Riffer::Workflow::Agent), ?Hash[Symbol, untyped]) -> Array[Hash[Symbol, untyped]]
   def self.step(name, step_class, options = {})
     steps << {
       name: name,
@@ -78,7 +87,7 @@ class Riffer::Workflow
     @default_input = kwargs
 
     self.class.steps.each do |step_config|
-      @results[step_config[:name]] = run_step_with_validation(step_config: step_config)
+      @results[step_config[:name]] = run_step(step_config: step_config)
     end
 
     Riffer::Workflow::Response.success(identifier: self.class.identifier, steps_response: @results)
@@ -94,68 +103,24 @@ class Riffer::Workflow
 
   private
 
-  # Executes the step with validation and timeout.
+  # Execute step with timeout handling.
   #
-  # Raises Riffer::ValidationError if validation fails.
   # Raises Riffer::TimeoutError if execution exceeds the configured timeout.
-  # Raises Riffer::Error if the step(Agent) does not return a Response::Agent object.
-  # Raises Riffer::ArgumentError if the step is not an Agent(we will update latter to accept Tool and Workflow).
+  # Raises Riffer::ValidationError if payload are not correct.
   #
   #--
-  #: (step_config: Hash[Symbol, untyped]) -> Riffer::Agent::Response|Riffer::Tool::Response|Riffer::Workflow::Response
-  def run_step_with_validation(step_config:)
-    validated_args = generate_validated_args(step_config)
-
-    result = Timeout.timeout(self.class.timeout) do
-      step = step_config[:step_class].new
-
-      case step
-      when Riffer::Agent
-        files = validated_args.delete(:files)
-        prompt = validated_args.values.join(" ")
-
-        step.generate(prompt, files:, context: @context)
-      when Riffer::Tool
-        validated_args[:context] = @context
-        step.call(**validated_args)
-      when Riffer::Workflow
-        validated_args[:context] = @context
-        step.run(**validated_args)
-      else
-        raise Riffer::ArgumentError, "Unknown message step: #{step_config[:step_class]}"
-      end
-    end
-
-    unless VALID_STEP_RESPONSE.any? { |cls| result.is_a?(cls) }
-      raise Riffer::Error, "#{self.class} must return a Riffer::Response from #run"
-    end
-
-    result
-  rescue Timeout::Error
-    raise Riffer::TimeoutError, "Step execution timed out after #{self.class.timeout} seconds"
-  end
-
-  # Generate and validate the arguments for a step, if the class provide one
-  #
-  #--
-  #: (Hash[Symbol, untyped]) -> Hash[Symbol, untyped]
-  def generate_validated_args(step_config)
-    params_builder = step_config[:step_class].respond_to?(:params) ? step_config[:step_class].params : nil
+  #: (step_config: Hash[Symbol, untyped]) -> Hash[Symbol, untyped]
+  def run_step(step_config:)
     sliced = @results.slice(*step_config[:depends_on])
     payload = sliced.empty? ? @default_input : sliced
 
-    payload.transform_values do |result|
-      if result.respond_to?(:structured_output)
-        result.structured_output
-      elsif result.respond_to?(:content)
-        {content: result.content}
-      elsif result.respond_to?(:to_h)
-        result.to_h
-      else
-        result # No need to wrap in {key => result} here
-      end
+    Timeout.timeout(self.class.timeout) do
+      step = step_config[:step_class].new
+      step.call(**payload)
     end
-
-    params_builder ? params_builder.validate(payload) : payload
+  rescue Timeout::Error
+    raise Riffer::TimeoutError, "Step execution timed out after #{self.class.timeout} seconds"
+  rescue ArgumentError => e
+    raise Riffer::ValidationError, "Step execution with incorrect input: #{payload}. #{e.message}"
   end
 end
